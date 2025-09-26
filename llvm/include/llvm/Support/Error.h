@@ -744,13 +744,14 @@ private:
 ///   @endcode
 inline void cantFail(Error Err, const char *Msg = nullptr) {
   if (Err) {
-    if (!Msg)
-      Msg = "Failure value returned from cantFail wrapped call";
-    std::string Str;
-    raw_string_ostream OS(Str);
-    OS << Msg << "\n" << Err;
-    Msg = OS.str().c_str();
-    llvm_unreachable(Msg);
+    if (Msg)
+      dbgs() << Msg;
+    else
+      dbgs() << "Failure value returned from cantFail wrapped call";
+
+    dbgs() << '\n' << Err << '\n';
+    dbgs() << "ABORT exectured at " << __FILE__ << ':' << __LINE__ << "!\n";
+    abort();
   }
 }
 
@@ -771,16 +772,9 @@ template <typename T>
 T cantFail(Expected<T> ValOrErr, const char *Msg = nullptr) {
   if (ValOrErr)
     return std::move(*ValOrErr);
-  else {
-    if (!Msg)
-      Msg = "Failure value returned from cantFail wrapped call";
-    std::string Str;
-    raw_string_ostream OS(Str);
-    auto E = ValOrErr.takeError();
-    OS << Msg << "\n" << E;
-    Msg = OS.str().c_str();
-    llvm_unreachable(Msg);
-  }
+
+  cantFail(ValOrErr.takeError(), Msg);
+  abort();
 }
 
 /// Report a fatal error if ValOrErr is a failure value, otherwise unwraps and
@@ -800,16 +794,9 @@ template <typename T>
 T& cantFail(Expected<T&> ValOrErr, const char *Msg = nullptr) {
   if (ValOrErr)
     return *ValOrErr;
-  else {
-    if (!Msg)
-      Msg = "Failure value returned from cantFail wrapped call";
-    std::string Str;
-    raw_string_ostream OS(Str);
-    auto E = ValOrErr.takeError();
-    OS << Msg << "\n" << E;
-    Msg = OS.str().c_str();
-    llvm_unreachable(Msg);
-  }
+
+  cantFail(ValOrErr.takeError(), Msg);
+  abort();
 }
 
 /// Helper for testing applicability of, and applying, handlers for
@@ -955,14 +942,14 @@ Error handleErrors(Error E, HandlerTs &&... Hs) {
 
 /// Behaves the same as handleErrors, except that by contract all errors
 /// *must* be handled by the given handlers (i.e. there must be no remaining
-/// errors after running the handlers, or llvm_unreachable is called).
+/// errors after running the handlers, or `abort` is called).
 template <typename... HandlerTs>
 void handleAllErrors(Error E, HandlerTs &&... Handlers) {
   cantFail(handleErrors(std::move(E), std::forward<HandlerTs>(Handlers)...));
 }
 
 /// Check that E is a non-error, then drop it.
-/// If E is an error, llvm_unreachable will be called.
+/// If E is an error,  `abort` will be called.
 inline void handleAllErrors(Error E) {
   cantFail(std::move(E));
 }
